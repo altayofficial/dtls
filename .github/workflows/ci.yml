@@ -1,0 +1,63 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    name: PHP ${{ matrix.php }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ["8.1", "8.2", "8.3", "8.4"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: openssl
+
+      - run: composer install --no-interaction --no-progress
+
+      - name: Lint sources
+        run: find src tests -name '*.php' -print0 | xargs -0 -n1 -P4 php -l > /dev/null
+
+      - run: vendor/bin/phpunit
+
+      - run: vendor/bin/phpstan analyse --no-progress
+
+  interop:
+    name: OpenSSL interoperability
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          extensions: openssl
+
+      - run: composer install --no-interaction --no-progress
+
+      - name: Generate a server certificate
+        run: openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -keyout key.pem -out cert.pem -days 2 -nodes -subj "/CN=interop"
+
+      # Agreeing with itself is not proof, so both roles are driven against a real DTLS peer.
+      - name: Our client against openssl s_server
+        run: |
+          sleep 30 | openssl s_server -dtls1_2 -listen -accept 4444 -cert cert.pem -key key.pem -no_ticket > server.log 2>&1 &
+          sleep 2
+          php tests/interop.php client 4444
+          grep -q "hello from altay dtls" server.log
+
+      - name: Our server against openssl s_client
+        run: |
+          php tests/interop.php server 4455 > ours.log 2>&1 &
+          PHPPID=$!
+          sleep 2
+          (sleep 4; echo "hi from openssl"; sleep 3) | openssl s_client -dtls1_2 -connect 127.0.0.1:4455 > client.log 2>&1
+          sleep 1
+          kill $PHPPID 2>/dev/null || true
+          grep -q "ESTABLISHED" ours.log
+          grep -q "hi from openssl" ours.log
