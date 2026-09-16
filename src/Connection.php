@@ -78,7 +78,7 @@ final class Connection{
 		$this->reassembler = new FragmentReassembler();
 		$this->replay = new ReplayWindow();
 
-		$ephemeral = openssl_pkey_new(["private_key_type" => OPENSSL_KEYTYPE_EC, "curve_name" => "prime256v1"]);
+		$ephemeral = openssl_pkey_new(["ec" => ["curve_name" => "prime256v1"]]);
 		if($ephemeral === false){
 			throw new DtlsException("could not generate an ephemeral EC key");
 		}

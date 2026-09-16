@@ -23,20 +23,19 @@ final class Certificate{
 	){}
 
 	public static function generate(string $commonName = "WebRTC", int $days = 30) : self{
-		$key = openssl_pkey_new([
-			"private_key_type" => OPENSSL_KEYTYPE_EC,
-			"curve_name" => "prime256v1"
-		]);
+		$key = openssl_pkey_new(["ec" => ["curve_name" => "prime256v1"]]);
 		if($key === false){
 			throw new DtlsException("could not generate an EC key");
 		}
 
-		$csr = openssl_csr_new(["commonName" => $commonName], $key, ["digest_alg" => "sha256"]);
+		$options = ["digest_alg" => "sha256"] + OpenSslConfig::options();
+
+		$csr = openssl_csr_new(["commonName" => $commonName], $key, $options);
 		if($csr === false){
 			throw new DtlsException("could not build a certificate request");
 		}
 
-		$certificate = openssl_csr_sign($csr, null, $key, $days, ["digest_alg" => "sha256"]);
+		$certificate = openssl_csr_sign($csr, null, $key, $days, $options);
 		if($certificate === false){
 			throw new DtlsException("could not self sign the certificate");
 		}

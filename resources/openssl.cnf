@@ -1,0 +1,6 @@
+# Minimal config for openssl_csr_new()/openssl_pkey_export(), which refuse to run without one.
+# Every value we care about is passed explicitly in code, so these sections are deliberately empty.
+[req]
+distinguished_name = dn
+
+[dn]
